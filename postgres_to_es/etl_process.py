@@ -1,12 +1,9 @@
 import os
 
-import psycopg2 as psycopg2
-import redis
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
-from psycopg2.extras import DictCursor
 
-from utils import backoff
+from decorators import backoff
 
 load_dotenv()
 
@@ -24,10 +21,12 @@ ES_PORT = os.environ.get('ES_PORT')
 
 class ETL:
     def __init__(self):
-        pass
+        self.es = Elasticsearch()
 
+    @backoff()
     def extract(self):
-        pass
+        self.es.indices.create(index='table3', ignore=400)
+        return self.es.count(index='table3')
 
     def transform(self):
         pass
@@ -37,11 +36,12 @@ class ETL:
 
 
 if __name__ == '__main__':
-    dsl = {'dbname': DB_NAME, 'user': DB_USER, 'password': DB_PASSWORD,
-           'host': DB_HOST, 'port': DB_PORT, 'options': DB_OPTIONS, }
-    es = Elasticsearch()
-    r = redis.Redis(host='localhost', port=6379, db=0)
-    r.set('foo', 'pizdulkin')
-    print(es.count(index='table'))
-    print(r.get('foo').decode())
-    pg_conn = backoff(psycopg2.connect(**dsl, cursor_factory=DictCursor))
+    etl = ETL()
+    print(etl.extract())
+    print(etl.extract())
+    # dsl = {'dbname': DB_NAME, 'user': DB_USER, 'password': DB_PASSWORD,
+    #        'host': DB_HOST, 'port': DB_PORT, 'options': DB_OPTIONS, }
+    # r = redis.Redis(host='localhost', port=6379, db=0)
+    # r.set('foo', 'pizdulkin')
+    # print(r.get('foo').decode())
+    # pg_conn = backoff(psycopg2.connect(**dsl, cursor_factory=DictCursor))
