@@ -7,7 +7,7 @@ class EtlConfig(BaseSettings):
     postgres_port: int
     postgres_user: str
     postgres_password: str
-    postgres_schema: str
+    postgres_options: str
     redis_host: str
     redis_port: int
     redis_password: str

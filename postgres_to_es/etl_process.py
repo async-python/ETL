@@ -1,13 +1,12 @@
 import psycopg2
 from elasticsearch import Elasticsearch
-from redis import Redis
 
-from etl_storage import State, RedisStorage
+from redis_storage import TransferState, RedisStorage
 from settings import EtlConfig
 
 
 class ETL:
-    def __init__(self, state: State, postgres: psycopg2.connect,
+    def __init__(self, state: TransferState, postgres: psycopg2.connect,
                  elastic: Elasticsearch):
         self.state = state
         self.postgres = postgres
@@ -28,8 +27,7 @@ class ETL:
 
 
 if __name__ == '__main__':
-    transfer_state = State(
-        RedisStorage(Redis(EtlConfig.redis_dsn)))
+    transfer_state = TransferState(RedisStorage())
     pg_conn = psycopg2.connect(dsn=EtlConfig.postgres_dsn)
     es_conn = Elasticsearch(EtlConfig.es_dsn)
     etl = ETL(transfer_state, pg_conn, es_conn)

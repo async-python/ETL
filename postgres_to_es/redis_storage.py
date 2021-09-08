@@ -5,6 +5,7 @@ from typing import Any
 from redis import Redis
 
 from postgres_to_es.decorators import backoff
+from postgres_to_es.settings import EtlConfig
 
 
 class BaseStorage:
@@ -20,8 +21,14 @@ class BaseStorage:
 
 
 class RedisStorage(BaseStorage):
-    def __init__(self, redis_adapter: Redis):
-        self.redis_adapter = redis_adapter
+    def __init__(self):
+        conf = EtlConfig()
+        self.redis_adapter = Redis(
+            host=conf.redis_host,
+            port=conf.redis_port,
+            password=conf.redis_password,
+            decode_responses=True,
+        )
 
     @backoff()
     def save_state(self, state: dict) -> None:
@@ -35,7 +42,7 @@ class RedisStorage(BaseStorage):
         return json.loads(raw_data)
 
 
-class State:
+class TransferState:
     """
     Класс для хранения состояния при работе с данными, чтобы постоянно
     не перечитывать данные с начала.
