@@ -1,6 +1,8 @@
 import psycopg2
 from elasticsearch import Elasticsearch
 
+from pg_base import PgBase
+from etl_dataclasses import PgFilmWork
 from redis_storage import TransferState, RedisStorage
 from settings import EtlConfig
 
@@ -27,8 +29,9 @@ class ETL:
 
 
 if __name__ == '__main__':
+    pgf = PgFilmWork
     transfer_state = TransferState(RedisStorage())
-    pg_conn = psycopg2.connect(dsn=EtlConfig.postgres_dsn)
-    es_conn = Elasticsearch(EtlConfig.es_dsn)
-    etl = ETL(transfer_state, pg_conn, es_conn)
-    etl()
+    pg_base = PgBase()
+    # es_base = Elasticsearch(EtlConfig.es_dsn)
+    # etl = ETL(transfer_state, pg_base, es_conn)
+    # etl()
