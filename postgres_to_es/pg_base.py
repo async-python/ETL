@@ -6,7 +6,7 @@ from psycopg2.extras import DictCursor
 
 from etl_decorators import backoff
 from etl_dataclasses import PgFilmWork, PgFilmID
-from settings import EtlConfig
+from etl_settings import EtlConfig
 
 
 class PgBase:

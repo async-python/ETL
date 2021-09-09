@@ -1,16 +1,7 @@
-import logging
-import sys
 import time
 from functools import wraps
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+from etl_settings import logger
 
 
 def backoff(start_sleep_time=0.5, factor=2, border_sleep_time=30):
@@ -41,7 +32,7 @@ def backoff(start_sleep_time=0.5, factor=2, border_sleep_time=30):
                     else:
                         delay = min(start_sleep_time * factor ** repeats,
                                     border_sleep_time)
-                    logger.info(e)
+                    logger.warn(e)
                     logger.info(f'следующая попытка через {delay}')
                     time.sleep(delay)
 
@@ -52,6 +43,7 @@ def backoff(start_sleep_time=0.5, factor=2, border_sleep_time=30):
 
 def coroutine(func):
     """Активация корутины"""
+
     @wraps(func)
     def inner(*args, **kwargs):
         fn = func(*args, **kwargs)

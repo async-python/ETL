@@ -1,25 +1,52 @@
-GET_FILMS_BY_ID = '''
-SELECT
-    fw.id, fw.rating, fw.description, fw.type, fw.certificate,
-    ARRAY_AGG(DISTINCT genre.name ) AS genres,
-    fw.title, fw.age_limit, fw.file_path, fw.created_at,
-    ARRAY_AGG(DISTINCT CONCAT(person.first_name,' ',person.middle_name
-    ,' ',person.last_name)) FILTER (WHERE person_fw.role = 'director')
-    AS directors,
-    ARRAY_AGG(DISTINCT CONCAT(person.first_name,' ',person.middle_name
-    ,' ',person.last_name)) FILTER (WHERE person_fw.role = 'actor') 
-    AS actors,
-    ARRAY_AGG(DISTINCT CONCAT(person.first_name,' ',person.middle_name
-    ,' ',person.last_name)) FILTER (WHERE person_fw.role = 'writer') 
-    AS writers,
-    fw.updated_at
-FROM film_work AS fw
-LEFT OUTER JOIN person_film_work AS person_fw ON 
-    fw.id = person_fw.film_work_id
-LEFT OUTER JOIN person as person ON person_fw.person_id = person.id
-LEFT OUTER JOIN genre_film_work AS genre_fw ON 
-    fw.id = genre_fw.film_work_id
-LEFT OUTER JOIN genre AS genre ON genre_fw.genre_id = genre.id
-WHERE fw.id = '3d825f60-9fff-4dfe-b294-1a45fa1e115d'
-GROUP BY fw.id;
-'''
+import json
+from dataclasses import asdict
+from typing import Optional
+
+from elasticsearch import Elasticsearch
+from elasticsearch import TransportError
+
+from etl_decorators import backoff
+from etl_settings import EtlConfig, logger
+
+
+class EsBase:
+    def __init__(self):
+        cnf = EtlConfig()
+        self.host = cnf.elastic_host
+        self.port = cnf.elastic_port
+        self.scheme = cnf.elastic_scheme
+        self.http_auth = (cnf.elastic_user, cnf.elastic_password)
+        self.index_name = cnf.elastic_index
+
+        self.es = self.connect()
+
+    def connect(self) -> Elasticsearch:
+        return Elasticsearch(self.host, port=self.port, scheme=self.scheme,
+                             http_auth=self.http_auth)
+
+    @backoff()
+    def create_index(self, index_name='', index_body=''):
+        try:
+            self.es.indices.create(index_name, body=index_body)
+        except TransportError as e:
+            logger.warning(e)
+
+    @backoff()
+    def bulk_update(self, docs) -> Optional[bool]:
+        if not docs:
+            logger.warning('No more data to update in elastic')
+            return None
+        body = ''
+        for doc in docs:
+            index = {'index': {'_index': self.index_name, '_id': doc.id}}
+            body += json.dumps(index) + '\n' + json.dumps(asdict(doc)) + '\n'
+
+        results = self.es.bulk(body=body)
+        if results['errors']:
+            error = [result['index'] for result in results['items'] if
+                     result['index']['status'] != 200]
+            logger.debug(results['took'])
+            logger.debug(results['errors'])
+            logger.debug(error)
+            return None
+        return True

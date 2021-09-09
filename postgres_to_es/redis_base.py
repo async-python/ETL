@@ -1,11 +1,12 @@
 import abc
 import json
-from typing import Any
+from datetime import datetime
+from typing import Any, Optional
 
 from redis import Redis
 
-from postgres_to_es.etl_decorators import backoff
-from postgres_to_es.settings import EtlConfig
+from etl_decorators import backoff
+from etl_settings import EtlConfig
 
 
 class BaseStorage:
@@ -42,7 +43,7 @@ class RedisStorage(BaseStorage):
         return json.loads(raw_data)
 
 
-class TransferState:
+class RedisState:
     """
     Класс для хранения состояния при работе с данными, чтобы постоянно
     не перечитывать данные с начала.
@@ -53,19 +54,28 @@ class TransferState:
 
     def __init__(self, storage: BaseStorage):
         self.storage = storage
-        self.state = self.retrieve_state()
+        self.state = self._retrieve_state()
 
-    def retrieve_state(self) -> dict:
+    def _retrieve_state(self) -> dict:
         data = self.storage.retrieve_state()
         if not data:
             return {}
         return data
 
-    def set_state(self, key: str, value: Any) -> None:
+    def _set_state(self, key: str, value: Any) -> None:
         """Установить состояние для определённого ключа"""
         self.state[key] = value
         self.storage.save_state(self.state)
 
-    def get_state(self, key: str) -> Any:
+    def _get_state(self, key: str) -> Any:
         """Получить состояние по определённому ключу"""
         return self.state.get(key)
+
+    def set_last_time(self, value: datetime) -> None:
+        self._set_state('last_time', value.isoformat())
+
+    def get_last_time(self) -> Optional[datetime]:
+        value = self._get_state('last_time')
+        if value is not None:
+            return datetime.fromisoformat(value)
+        return None
