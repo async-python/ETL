@@ -1,37 +1,47 @@
+from functools import reduce
+
 import psycopg2
 from elasticsearch import Elasticsearch
 
 from pg_base import PgBase
 from etl_dataclasses import PgFilmWork
+from etl_decorators import coroutine
 from redis_storage import TransferState, RedisStorage
 from settings import EtlConfig
 
 
 class ETL:
-    def __init__(self, state: TransferState, postgres: psycopg2.connect,
-                 elastic: Elasticsearch):
-        self.state = state
-        self.postgres = postgres
-        self.es = elastic
+    def __init__(self, postgres: PgBase, ):
+        conf = EtlConfig()
+        self.limit = conf.etl_butch_size
+        self.pg_adapter = postgres
+        # self.es = elastic
 
-    def extract(self):
-        self.es.indices.create(index='table3', ignore=400)
-        return self.es.count(index='table3')
+    def extract(self, transformer):
+        last_time = self.pg_adapter.get_first_film_update_time()
+        for i in range(5):
+            films_obj = self.pg_adapter.get_films_ids(last_time, self.limit)
+            films_ids = tuple([obj.id for obj in films_obj])
+            last_time = films_obj[-1].updated_at
+            transformer.send(films_ids)
 
+    @coroutine
     def transform(self):
-        pass
+        while films_ids := (yield):
+            films = self.pg_adapter.get_films_by_id(films_ids)
+            print(films)
 
     def load(self):
         pass
 
     def __call__(self, *args, **kwargs):
-        print(self.extract())
+        transformer = self.transform()
+        self.extract(transformer)
 
 
 if __name__ == '__main__':
-    pgf = PgFilmWork
-    transfer_state = TransferState(RedisStorage())
+    # transfer_state = TransferState(RedisStorage())
     pg_base = PgBase()
     # es_base = Elasticsearch(EtlConfig.es_dsn)
-    # etl = ETL(transfer_state, pg_base, es_conn)
-    # etl()
+    etl = ETL(pg_base)
+    etl()

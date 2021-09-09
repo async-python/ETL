@@ -20,6 +20,3 @@ class EtlConfig(BaseSettings):
 
     class Config:
         env_file = '../.env'
-
-
-print(EtlConfig().dict())

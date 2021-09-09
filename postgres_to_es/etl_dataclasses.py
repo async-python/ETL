@@ -2,6 +2,13 @@ import uuid
 from datetime import datetime
 
 from dataclasses import dataclass
+from typing import List
+
+
+@dataclass
+class PgFilmID:
+    id: uuid.UUID
+    updated_at: datetime
 
 
 @dataclass
@@ -10,14 +17,26 @@ class PgFilmWork:
     title: str
     description: str
     type: str
-    created_at: datetime
-    updated_at: datetime
-    genres: list = None
+    genres: List[str] = None
     rating: float = None
     creation_date: datetime = None
     certificate: str = None
     age_limit: str = None
     file_path: str = None
-    directors: list = None
-    actors: list = None
-    writers: list = None
+    directors: List[str] = None
+    actors: List[str] = None
+    writers: List[str] = None
+
+    def __post_init__(self):
+        self.directors = self.clear_spaces(self.directors)
+        self.actors = self.clear_spaces(self.actors)
+        self.writers = self.clear_spaces(self.writers)
+
+    def clear_spaces(self, rows):
+        """
+        Удаление лишних пробелов в результате объединения полей
+        имени в строку полного имени.
+        """
+        return [
+            row.strip(' ').replace('  ', ' ') for row in rows
+        ] if rows else None

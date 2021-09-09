@@ -4,7 +4,7 @@ from typing import Any
 
 from redis import Redis
 
-from postgres_to_es.decorators import backoff
+from postgres_to_es.etl_decorators import backoff
 from postgres_to_es.settings import EtlConfig
 
 
