@@ -43,9 +43,9 @@ class ETL:
             films: List[PgFilmWork] = extracted_data
             print([film.id for film in films])
             try:
-                self.es_adapter.es.indices.delete('movies')
-                self.es_adapter.create_index('movies', INDEX_SCHEMA)
-                # self.es_adapter.bulk_update()
+                # self.es_adapter.es.indices.delete('movies')
+                # self.es_adapter.create_index('movies', INDEX_SCHEMA)
+                self.es_adapter.bulk_update(films)
                 # print(self.es_adapter.es.get('movies', '1'))
             except Exception as e:
                 print(e)

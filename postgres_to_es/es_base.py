@@ -17,7 +17,6 @@ class EsBase:
         self.index_name = cnf.elastic_index
         self.es = self.connect()
 
-    # @backoff()
     def connect(self) -> Elasticsearch:
         return Elasticsearch(hosts=self.host, port=self.port,
                              scheme=self.scheme, http_auth=self.http_auth)
@@ -25,7 +24,7 @@ class EsBase:
     @backoff()
     def create_index(self, index_name='', index_body=''):
         try:
-            self.es.indices.create(index_name, body=index_body)
+            self.es.indices.create(index=index_name, body=index_body)
         except TransportError as e:
             logger.warning(e)
 
@@ -43,8 +42,8 @@ class EsBase:
         if results['errors']:
             error = [result['index'] for result in results['items'] if
                      result['index']['status'] != 200]
-            logger.debug(results['took'])
-            logger.debug(results['errors'])
-            logger.debug(error)
+            logger.warning(results['took'])
+            logger.warning(results['errors'])
+            logger.warning(error)
             return None
         return True
