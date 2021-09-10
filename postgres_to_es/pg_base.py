@@ -1,12 +1,11 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 
+from etl_dataclasses import PgFilmID, PgFilmWork
+from etl_decorators import backoff
+from etl_settings import EtlConfig
 from psycopg2 import connect as pg_conn
 from psycopg2.extras import DictCursor
-
-from etl_decorators import backoff
-from etl_dataclasses import PgFilmWork, PgFilmID
-from etl_settings import EtlConfig
 
 
 class PgBase:

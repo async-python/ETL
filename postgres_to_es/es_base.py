@@ -2,9 +2,7 @@ import json
 from dataclasses import asdict
 from typing import Optional
 
-from elasticsearch import Elasticsearch
-from elasticsearch import TransportError
-
+from elasticsearch import Elasticsearch, TransportError
 from etl_decorators import backoff
 from etl_settings import EtlConfig, logger
 
@@ -17,12 +15,12 @@ class EsBase:
         self.scheme = cnf.elastic_scheme
         self.http_auth = (cnf.elastic_user, cnf.elastic_password)
         self.index_name = cnf.elastic_index
-
         self.es = self.connect()
 
+    # @backoff()
     def connect(self) -> Elasticsearch:
-        return Elasticsearch(self.host, port=self.port, scheme=self.scheme,
-                             http_auth=self.http_auth)
+        return Elasticsearch(hosts=self.host, port=self.port,
+                             scheme=self.scheme, http_auth=self.http_auth)
 
     @backoff()
     def create_index(self, index_name='', index_body=''):
