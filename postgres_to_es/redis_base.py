@@ -1,4 +1,5 @@
 import abc
+import enum
 import json
 from datetime import datetime
 from typing import Any, Optional
@@ -6,6 +7,11 @@ from typing import Any, Optional
 from etl_decorators import backoff
 from etl_settings import EtlConfig
 from redis import Redis
+
+
+class ProcessStates(enum.Enum):
+    run = 'run'
+    stop = 'stop'
 
 
 class BaseStorage:
@@ -46,35 +52,34 @@ class RedisState:
     """
     Класс для хранения состояния при работе с данными, чтобы постоянно
     не перечитывать данные с начала.
-    Здесь представлена реализация с сохранением состояния в файл.
-    В целом ничего не мешает поменять это поведение на работу с БД или
-    распределённым хранилищем.
     """
 
     def __init__(self, storage: BaseStorage):
         self.storage = storage
-        self.state = self._retrieve_state()
+        self.state = self.storage.retrieve_state()
 
-    def _retrieve_state(self) -> dict:
-        data = self.storage.retrieve_state()
-        if not data:
-            return {}
-        return data
-
-    def _set_state(self, key: str, value: Any) -> None:
+    def set_state(self, key: str, value: Any) -> None:
         """Установить состояние для определённого ключа"""
         self.state[key] = value
         self.storage.save_state(self.state)
 
-    def _get_state(self, key: str) -> Any:
+    def get_state(self, key: str) -> Any:
         """Получить состояние по определённому ключу"""
         return self.state.get(key)
 
     def set_last_time(self, value: datetime) -> None:
-        self._set_state('last_time', value.isoformat())
+        """Установить время последней записи"""
+        self.set_state('last_time', value.isoformat())
 
     def get_last_time(self) -> Optional[datetime]:
-        value = self._get_state('last_time')
+        """Получить время последней записи, если существует"""
+        value = self.get_state('last_time')
         if value is not None:
             return datetime.fromisoformat(value)
         return None
+
+    def set_process_state(self, state: ProcessStates) -> None:
+        self.set_state('process', state.value)
+
+    def get_process_state(self) -> ProcessStates:
+        return ProcessStates(self.get_state('process'))

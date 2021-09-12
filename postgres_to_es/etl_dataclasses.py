@@ -1,7 +1,12 @@
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List
+from typing import List, Union
+
+
+@dataclass()
+class PgRowsCount:
+    count: int
 
 
 @dataclass
@@ -18,7 +23,7 @@ class PgFilmWork:
     type: str
     genres: List[str] = None
     rating: float = None
-    creation_date: datetime = None
+    creation_date: Union[str, datetime] = None
     certificate: str = None
     age_limit: str = None
     file_path: str = None
@@ -30,6 +35,7 @@ class PgFilmWork:
         self.directors = self.clear_spaces(self.directors)
         self.actors = self.clear_spaces(self.actors)
         self.writers = self.clear_spaces(self.writers)
+        self.creation_date = self.creation_date.isoformat()
 
     def clear_spaces(self, rows):
         """

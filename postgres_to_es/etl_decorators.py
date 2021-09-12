@@ -42,7 +42,7 @@ def backoff(start_sleep_time=0.5, factor=2, border_sleep_time=30):
 
 
 def coroutine(func):
-    """Активация корутины"""
+    """Активация сопрограммы"""
 
     @wraps(func)
     def inner(*args, **kwargs):

@@ -1,16 +1,20 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from etl_dataclasses import PgFilmID, PgFilmWork
+from etl_dataclasses import PgFilmID, PgFilmWork, PgRowsCount
 from etl_decorators import backoff
-from etl_settings import EtlConfig
+from etl_settings import EtlConfig, logger
 from psycopg2 import connect as pg_conn
 from psycopg2.extras import DictCursor
 
 
 class PgBase:
+    """Класс - адаптер PostgreSQL для ETL процесса"""
+
     BEGIN = ('SELECT id, updated_at FROM film_work ORDER BY '
              'updated_at, id LIMIT 1')
+    TOTAL = 'SELECT COUNT(*) FROM film_work '
+    COUNT = TOTAL + 'WHERE updated_at > %s'
     GET_FILM_IDS = '''SELECT id, updated_at FROM film_work WHERE 
         updated_at  > %s ORDER BY updated_at, id LIMIT %s'''
     GET_FILMS_BY_ID = '''
@@ -56,7 +60,7 @@ class PgBase:
         )
 
     @backoff()
-    def pg_single_query(self, sql_query: str, query_args: Optional) -> dict:
+    def query_one_row(self, sql_query: str, query_args: Optional) -> dict:
         """Запрос одной строки в БД"""
         self.conn = self.connect() if self.conn.closed != 0 else self.conn
         with self.conn as conn, conn.cursor() as cur:
@@ -65,7 +69,7 @@ class PgBase:
         return row
 
     @backoff()
-    def pg_multiple_query(self, sql_query: str, query_args: tuple) -> dict:
+    def query_list_rows(self, sql_query: str, query_args: tuple) -> dict:
         """Запрос списка строк в БД"""
         self.conn = self.connect() if self.conn.closed != 0 else self.conn
         with self.conn as conn, conn.cursor() as cur:
@@ -73,11 +77,27 @@ class PgBase:
             rows = cur.fetchall()
         return rows
 
-    def get_first_film_update_time(self) -> datetime:
+    def verify_data_exists(self) -> bool:
+        """Проверка на наличие данных в таблице"""
+        row = self.query_one_row(self.TOTAL, None)
+        if PgRowsCount(**row).count:
+            return True
+        return False
+
+    def get_rows_count(self, date: datetime):
+        """Получаем общее число строк к записи в ES"""
+        row = self.query_one_row(self.COUNT, (date,))
+        return PgRowsCount(**row).count
+
+    def get_first_film_update_time(self) -> Optional[datetime]:
         """Возвращает дату первого обновления фильма по полю updated_at"""
-        row = self.pg_single_query(self.BEGIN, None)
-        time = PgFilmID(**row)
-        return time.updated_at - timedelta(0, 0, 0, 1)
+        row = self.query_one_row(self.BEGIN, None)
+        try:
+            time = PgFilmID(**row)
+            return time.updated_at - timedelta(0, 0, 0, 1)
+        except Exception as e:
+            logger.warning(e)
+            return None
 
     def get_films_ids(
             self, last_time: datetime, limit: int) -> List[PgFilmID]:
@@ -88,11 +108,15 @@ class PgBase:
         значения параметра last_time.
         :param limit: число ID в выборке.
         """
-        id_list = [PgFilmID(**row) for row in self.pg_multiple_query(
+        id_list = [PgFilmID(**row) for row in self.query_list_rows(
             self.GET_FILM_IDS, (last_time, limit,))]
         return id_list
 
     def get_films_by_id(self, id_list: tuple) -> List[PgFilmWork]:
+        """
+        Получает данные из БД и возвращает преобразованными в List[dataclass]
+        :param: id_list: список ID кинопроизведений для запроса
+        """
         films = [PgFilmWork(**row) for row in
-                 self.pg_multiple_query(self.GET_FILMS_BY_ID, (id_list,))]
+                 self.query_list_rows(self.GET_FILMS_BY_ID, (id_list,))]
         return films

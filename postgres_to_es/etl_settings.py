@@ -14,21 +14,21 @@ logger.addHandler(handler)
 
 
 class EtlConfig(BaseSettings):
-    postgres_db: str
-    postgres_host: str
+    postgres_db: str = 'movies'
+    postgres_host: str = 'localhost'
     postgres_port: int = 5432
-    postgres_user: str
+    postgres_user: str = 'postgres'
     postgres_password: str
     postgres_options: str
-    redis_host: str
+    redis_host: str = 'localhost'
     redis_port: int = 6379
     redis_password: str
-    elastic_host: str
+    elastic_host: str = 'localhost'
     elastic_port: int = 9200
-    elastic_user: str
+    elastic_user: str = 'elastic'
     elastic_password: str
     elastic_scheme: str = 'http'
-    elastic_index: str
+    elastic_index: str = 'movies'
     etl_butch_size: int = 10
 
     class Config:

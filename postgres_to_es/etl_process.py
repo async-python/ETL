@@ -1,63 +1,106 @@
+import json
 import uuid
+from dataclasses import asdict
+from datetime import datetime
 from functools import reduce
-from typing import Coroutine, List
+from typing import Callable, Coroutine, List, Optional
 
+from es_base import EsBase
 from etl_dataclasses import PgFilmWork
 from etl_decorators import coroutine
 from etl_settings import EtlConfig, logger
 from pg_base import PgBase
-from postgres_to_es.es_schema import INDEX_SCHEMA
-from redis_base import RedisState, RedisStorage
-
-from postgres_to_es.es_base import EsBase
+from redis_base import ProcessStates, RedisState
 
 
 class ETL:
+    """Pipeline для выгрузки данных из Postgres в Elasticsearch"""
+
     def __init__(
             self, postgres: PgBase, redis: RedisState, elastic: EsBase):
         conf = EtlConfig()
+        self.index_name = conf.elastic_index
         self.limit = conf.etl_butch_size
         self.pg_adapter = postgres
         self.redis_adapter = redis
         self.es_adapter = elastic
+        self.temp_time_value = None
+        # Параметры вывода логов
+        self.process_time_begin = None
+        self.total_rows = None
+        self.total_rows_loaded = 0
+        self.log_output_step = None
+        self.rows_counter = 0
+
+    def init_logger_conf(self):
+        """Определение параметров вывода логов в процессе загрузки данных"""
+        self.process_time_begin = self.get_last_time()
+        self.total_rows = self.pg_adapter.get_rows_count(
+            self.process_time_begin)
+        self.log_output_step = round(self.total_rows / 10, 0)
+
+    def logger_output(self):
+        self.total_rows_loaded += self.limit
+        self.rows_counter += self.limit
+        if self.rows_counter >= self.log_output_step:
+            self.total_rows = self.pg_adapter.get_rows_count(
+                self.process_time_begin)
+            percent = round(
+                100 * self.total_rows_loaded / self.total_rows, 0)
+            logger.info(f'Записано {percent}% данных')
+            self.rows_counter = 0
+
+    def get_last_time(self) -> Optional[datetime]:
+        return (self.redis_adapter.get_last_time() or
+                self.pg_adapter.get_first_film_update_time())
 
     def extract(self, transformer: Coroutine) -> (uuid,):
-        logger.info('Процесс ETL запущен')
-        for i in range(1):
-            last_time = (self.redis_adapter.get_last_time() or
-                         self.pg_adapter.get_first_film_update_time())
-            films_obj = self.pg_adapter.get_films_ids(last_time, self.limit)
-            films_ids = tuple([obj.id for obj in films_obj])
-            self.redis_adapter.set_last_time(films_obj[-1].updated_at)
-            transformer.send(films_ids)
+        """Получение списка ID кинопроизведений"""
+        while self.redis_adapter.get_process_state() == ProcessStates.run:
+            limited_ids = self.pg_adapter.get_films_ids(
+                self.get_last_time(), self.limit)
+            if len(limited_ids):
+                films_ids = tuple([obj.id for obj in limited_ids])
+                self.temp_time_value = limited_ids[-1].updated_at
+                transformer.send(films_ids)
+            else:
+                self.redis_adapter.set_process_state(ProcessStates.stop)
+                logger.info('Процесс ETL завершен')
 
     @coroutine
-    def transform(self, loader: Coroutine):
+    def transform(self, loader: Coroutine) -> str:
+        """
+        Получение перечня кинопроизведений по ID из Postgres и преобразование
+        в str для загрузки в Elasticsearch
+        """
         while films_ids := (yield):
-            films = self.pg_adapter.get_films_by_id(films_ids)
-            loader.send(films)
+            films: List[PgFilmWork] = self.pg_adapter.get_films_by_id(
+                films_ids)
+            index_body = ''
+            for film in films:
+                index = {'index': {'_index': self.index_name, '_id': film.id}}
+                index_body += json.dumps(index) + '\n' + json.dumps(
+                    asdict(film)) + '\n'
+            loader.send(index_body)
 
     @coroutine
     def load(self) -> None:
+        """Загрузка данных в Elasticsearch"""
         while extracted_data := (yield):
-            films: List[PgFilmWork] = extracted_data
-            print([film.id for film in films])
-            try:
-                # self.es_adapter.es.indices.delete('movies')
-                # self.es_adapter.create_index('movies', INDEX_SCHEMA)
-                self.es_adapter.bulk_update(films)
-                # print(self.es_adapter.es.get('movies', '1'))
-            except Exception as e:
-                print(e)
+            films: str = extracted_data
+            self.es_adapter.bulk_create(films)
+            self.redis_adapter.set_last_time(self.temp_time_value)
+            self.logger_output()
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs) -> Optional[Callable]:
+        if self.redis_adapter.get_process_state() == ProcessStates.run:
+            logger.warning('Процесс ETL уже запущен')
+            return
+        if not self.pg_adapter.verify_data_exists():
+            logger.warning('Данные для ETL процесса отсутствуют')
+            return
+        self.redis_adapter.set_process_state(ProcessStates.run)
+        self.init_logger_conf()
+        logger.info('Процесс ETL запущен')
         return reduce(lambda val, func: func(val),
                       [self.load(), self.transform, self.extract])
-
-
-if __name__ == '__main__':
-    redis_base = RedisState(RedisStorage())
-    pg_base = PgBase()
-    es_base = EsBase()
-    etl = ETL(pg_base, redis_base, es_base)
-    etl()
