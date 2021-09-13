@@ -29,7 +29,7 @@ class EtlConfig(BaseSettings):
     elastic_password: str
     elastic_scheme: str = 'http'
     elastic_index: str = 'movies'
-    etl_butch_size: int = 10
+    etl_butch_size: int = 10000
 
     class Config:
         env_file = '../.env'

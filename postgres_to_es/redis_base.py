@@ -79,9 +79,11 @@ class RedisState:
         return None
 
     def set_process_state(self, state: ProcessStates) -> None:
+        """Установить состояние работы процесса ETL"""
         self.set_state('process', state.value)
 
     def get_process_state(self) -> ProcessStates:
+        """Получить состояние работы процесса ETL"""
         state = self.get_state('process')
         if state is None:
             return ProcessStates.stop

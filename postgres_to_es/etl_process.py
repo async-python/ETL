@@ -1,5 +1,4 @@
 import json
-import uuid
 from dataclasses import asdict
 from datetime import datetime
 from functools import reduce
@@ -55,7 +54,10 @@ class LogHelper:
 
 
 class ETL:
-    """Pipeline для выгрузки данных из Postgres в Elasticsearch"""
+    """
+    Pipeline для выгрузки данных из Postgres в Elasticsearch
+    Завершает работу, если данных для загрузки нет
+    """
 
     def __init__(
             self, postgres: PgBase, redis: RedisState, elastic: EsBase):
@@ -72,21 +74,25 @@ class ETL:
         return (self.redis_adapter.get_last_time() or
                 self.pg_adapter.get_first_film_update_time())
 
-    def extract(self, transformer: Coroutine) -> (uuid,):
+    def extract(self, transformer: Coroutine):
         """Получение списка ID кинопроизведений"""
         while self.redis_adapter.get_process_state() == ProcessStates.run:
+            last_time = self.get_last_time()
+            if last_time is None:
+                logger.warning('Не удалось получить дату updated_at')
+                break
             limited_ids = self.pg_adapter.get_films_ids(
-                self.get_last_time(), self.rows_limit)
+                last_time, self.rows_limit)
             if len(limited_ids):
                 films_ids = tuple([obj.id for obj in limited_ids])
                 self.temp_time_value = limited_ids[-1].updated_at
                 transformer.send(films_ids)
             else:
                 self.redis_adapter.set_process_state(ProcessStates.stop)
-                logger.info('Процесс ETL завершен')
+        logger.info('Процесс ETL завершен')
 
     @coroutine
-    def transform(self, loader: Coroutine) -> str:
+    def transform(self, loader: Coroutine):
         """
         Получение перечня кинопроизведений по ID из Postgres и преобразование
         в str для загрузки в Elasticsearch
@@ -102,7 +108,7 @@ class ETL:
             loader.send(index_body)
 
     @coroutine
-    def load(self) -> None:
+    def load(self):
         """Загрузка данных в Elasticsearch"""
         while extracted_data := (yield):
             films: str = extracted_data
