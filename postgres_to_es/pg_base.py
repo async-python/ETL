@@ -95,8 +95,8 @@ class PgBase:
         try:
             time = PgFilmID(**row)
             return time.updated_at - timedelta(0, 0, 0, 1)
-        except Exception as e:
-            logger.warning(e)
+        except Exception as error:
+            logger.error(error)
             return None
 
     def get_films_ids(

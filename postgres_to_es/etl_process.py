@@ -46,11 +46,8 @@ class LogHelper:
             self.rows_counter = 0
 
     def __call__(self, *args, **kwargs) -> None:
-        try:
-            self.update_logger_conf()
-            self.output_log()
-        except ZeroDivisionError as e:
-            logger.warning(e)
+        self.update_logger_conf()
+        self.output_log()
 
 
 class ETL:
