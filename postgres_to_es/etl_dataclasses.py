@@ -35,7 +35,8 @@ class PgFilmWork:
         self.directors = self.clear_spaces(self.directors)
         self.actors = self.clear_spaces(self.actors)
         self.writers = self.clear_spaces(self.writers)
-        self.creation_date = self.creation_date.isoformat()
+        self.creation_date = (self.creation_date.isoformat() if
+                              self.creation_date is not None else None)
 
     def clear_spaces(self, rows):
         """

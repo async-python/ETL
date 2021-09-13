@@ -84,7 +84,7 @@ class PgBase:
             return True
         return False
 
-    def get_rows_count(self, date: datetime):
+    def get_rows_count(self, date: datetime) -> int:
         """Получаем общее число строк к записи в ES"""
         row = self.query_one_row(self.COUNT, (date,))
         return PgRowsCount(**row).count

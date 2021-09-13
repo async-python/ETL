@@ -82,4 +82,7 @@ class RedisState:
         self.set_state('process', state.value)
 
     def get_process_state(self) -> ProcessStates:
+        state = self.get_state('process')
+        if state is None:
+            return ProcessStates.stop
         return ProcessStates(self.get_state('process'))

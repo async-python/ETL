@@ -13,6 +13,47 @@ from pg_base import PgBase
 from redis_base import ProcessStates, RedisState
 
 
+class LogHelper:
+    """Вычисляет процент загрузки данных и выводит в лог"""
+
+    def __init__(self, rows_limit: int, pg_adapter: PgBase) -> None:
+        self.pg_adapter = pg_adapter
+        self.butch_size = rows_limit
+        self.output_percent_value = 10
+        self.start_time = None
+        self.total_rows = None
+        self.total_rows_loaded = 0
+        self.log_output_step = None
+        self.rows_counter = 0
+
+    def update_logger_conf(self) -> None:
+        """Обновление параметров вывода логов в процессе загрузки данных"""
+        self.total_rows_loaded += self.butch_size
+        self.rows_counter += self.butch_size
+        if self.start_time is None:
+            self.start_time = self.pg_adapter.get_first_film_update_time()
+            self.total_rows = self.pg_adapter.get_rows_count(self.start_time)
+            self.log_output_step = round(
+                self.total_rows / self.output_percent_value, 0)
+        else:
+            self.total_rows = self.pg_adapter.get_rows_count(self.start_time)
+
+    def output_log(self) -> None:
+        """Вывод лога"""
+        if self.rows_counter >= self.log_output_step:
+            percent = round(
+                100 * self.total_rows_loaded / self.total_rows, 0)
+            logger.info(f'Записано {percent}% данных')
+            self.rows_counter = 0
+
+    def __call__(self, *args, **kwargs) -> None:
+        try:
+            self.update_logger_conf()
+            self.output_log()
+        except ZeroDivisionError as e:
+            logger.warning(e)
+
+
 class ETL:
     """Pipeline для выгрузки данных из Postgres в Elasticsearch"""
 
@@ -20,35 +61,12 @@ class ETL:
             self, postgres: PgBase, redis: RedisState, elastic: EsBase):
         conf = EtlConfig()
         self.index_name = conf.elastic_index
-        self.limit = conf.etl_butch_size
+        self.rows_limit = conf.etl_butch_size
         self.pg_adapter = postgres
         self.redis_adapter = redis
         self.es_adapter = elastic
+        self.log_helper = LogHelper(self.rows_limit, self.pg_adapter)
         self.temp_time_value = None
-        # Параметры вывода логов
-        self.process_time_begin = None
-        self.total_rows = None
-        self.total_rows_loaded = 0
-        self.log_output_step = None
-        self.rows_counter = 0
-
-    def init_logger_conf(self):
-        """Определение параметров вывода логов в процессе загрузки данных"""
-        self.process_time_begin = self.get_last_time()
-        self.total_rows = self.pg_adapter.get_rows_count(
-            self.process_time_begin)
-        self.log_output_step = round(self.total_rows / 10, 0)
-
-    def logger_output(self):
-        self.total_rows_loaded += self.limit
-        self.rows_counter += self.limit
-        if self.rows_counter >= self.log_output_step:
-            self.total_rows = self.pg_adapter.get_rows_count(
-                self.process_time_begin)
-            percent = round(
-                100 * self.total_rows_loaded / self.total_rows, 0)
-            logger.info(f'Записано {percent}% данных')
-            self.rows_counter = 0
 
     def get_last_time(self) -> Optional[datetime]:
         return (self.redis_adapter.get_last_time() or
@@ -58,7 +76,7 @@ class ETL:
         """Получение списка ID кинопроизведений"""
         while self.redis_adapter.get_process_state() == ProcessStates.run:
             limited_ids = self.pg_adapter.get_films_ids(
-                self.get_last_time(), self.limit)
+                self.get_last_time(), self.rows_limit)
             if len(limited_ids):
                 films_ids = tuple([obj.id for obj in limited_ids])
                 self.temp_time_value = limited_ids[-1].updated_at
@@ -90,7 +108,7 @@ class ETL:
             films: str = extracted_data
             self.es_adapter.bulk_create(films)
             self.redis_adapter.set_last_time(self.temp_time_value)
-            self.logger_output()
+            self.log_helper()
 
     def __call__(self, *args, **kwargs) -> Optional[Callable]:
         if self.redis_adapter.get_process_state() == ProcessStates.run:
@@ -100,7 +118,6 @@ class ETL:
             logger.warning('Данные для ETL процесса отсутствуют')
             return
         self.redis_adapter.set_process_state(ProcessStates.run)
-        self.init_logger_conf()
         logger.info('Процесс ETL запущен')
         return reduce(lambda val, func: func(val),
                       [self.load(), self.transform, self.extract])
