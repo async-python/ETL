@@ -26,13 +26,13 @@ def backoff(start_sleep_time=0.5, factor=2, border_sleep_time=30):
                 repeats += 1
                 try:
                     return func(*args, **kwargs)
-                except Exception as e:
+                except Exception as error:
                     if delay >= border_sleep_time:
                         delay = border_sleep_time
                     else:
                         delay = min(start_sleep_time * factor ** repeats,
                                     border_sleep_time)
-                    logger.warn(e)
+                    logger.error(error)
                     logger.info(f'следующая попытка через {delay}')
                     time.sleep(delay)
 

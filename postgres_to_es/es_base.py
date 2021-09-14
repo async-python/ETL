@@ -1,6 +1,6 @@
 import json
 
-from elasticsearch import Elasticsearch, RequestError
+from elasticsearch import Elasticsearch
 from etl_decorators import backoff
 from etl_settings import EtlConfig, logger
 
@@ -31,10 +31,10 @@ class EsBase:
         Создание индекса,
         в случае если индекс существует вывод предупреждения
         """
-        try:
+        if self.es.indices.exists(index=index_name):
+            logger.warning(f'Индекс {index_name} уже существует')
+        else:
             self.es.indices.create(index=index_name, body=index_body)
-        except RequestError as e:
-            logger.warning(e)
 
     @backoff()
     def bulk_create(self, index_body: str) -> None:
