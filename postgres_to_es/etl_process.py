@@ -7,6 +7,7 @@ from typing import Callable, Coroutine, List, Optional
 from es_base import EsBase
 from etl_dataclasses import PgFilmWork
 from etl_decorators import coroutine
+from etl_exceptions import EmptyStartTimeException
 from etl_settings import EtlConfig, logger
 from pg_base import PgBase
 from redis_base import ProcessStates, RedisState
@@ -67,19 +68,18 @@ class ETL:
         self.log_helper = LogHelper(self.rows_limit, self.pg_adapter)
         self.temp_time_value = None
 
-    def get_last_time(self) -> Optional[datetime]:
-        return (self.redis_adapter.get_last_time() or
+    def get_last_time(self) -> datetime:
+        time = (self.redis_adapter.get_last_time() or
                 self.pg_adapter.get_first_film_update_time())
+        if time is None:
+            raise EmptyStartTimeException
+        return time
 
     def extract(self, transformer: Coroutine):
         """Получение списка ID кинопроизведений"""
         while self.redis_adapter.get_process_state() == ProcessStates.run:
-            last_time = self.get_last_time()
-            if last_time is None:
-                logger.warning('Не удалось получить дату updated_at')
-                break
             limited_ids = self.pg_adapter.get_films_ids(
-                last_time, self.rows_limit)
+                self.get_last_time(), self.rows_limit)
             if len(limited_ids):
                 films_ids = tuple([obj.id for obj in limited_ids])
                 self.temp_time_value = limited_ids[-1].updated_at
@@ -122,5 +122,9 @@ class ETL:
             return
         self.redis_adapter.set_process_state(ProcessStates.run)
         logger.info('Процесс ETL запущен')
-        return reduce(lambda val, func: func(val),
-                      [self.load(), self.transform, self.extract])
+        try:
+            return reduce(lambda val, func: func(val),
+                          [self.load(), self.transform, self.extract])
+        except EmptyStartTimeException as error:
+            logger.error(error)
+            self.redis_adapter.set_process_state(ProcessStates.stop)

@@ -1,10 +1,12 @@
 import time
 from functools import wraps
 
+from etl_exceptions import ExceededConnectLimitException
 from etl_settings import logger
 
 
-def backoff(start_sleep_time=0.5, factor=2, border_sleep_time=30):
+def backoff(start_sleep_time=0.5, factor=2, border_sleep_time=30,
+            connection_attempts=50):
     """
     Функция для повторного выполнения функции через некоторое время,
     если возникла ошибка. Использует наивный экспоненциальный рост времени
@@ -15,6 +17,7 @@ def backoff(start_sleep_time=0.5, factor=2, border_sleep_time=30):
     :param start_sleep_time: начальное время повтора
     :param factor: во сколько раз нужно увеличить время ожидания
     :param border_sleep_time: граничное время ожидания
+    :param connection_attempts: количество попыток выполнения функции
     :return: результат выполнения функции
     """
 
@@ -22,7 +25,7 @@ def backoff(start_sleep_time=0.5, factor=2, border_sleep_time=30):
         @wraps(func)
         def inner(*args, **kwargs):
             repeats, delay = 0, 0
-            while True:
+            while repeats < connection_attempts:
                 repeats += 1
                 try:
                     return func(*args, **kwargs)
@@ -35,6 +38,7 @@ def backoff(start_sleep_time=0.5, factor=2, border_sleep_time=30):
                     logger.error(error)
                     logger.info(f'следующая попытка через {delay}')
                     time.sleep(delay)
+            raise ExceededConnectLimitException(func)
 
         return inner
 
