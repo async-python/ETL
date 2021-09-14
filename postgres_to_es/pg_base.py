@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from etl_dataclasses import PgFilmID, PgFilmWork, PgRowsCount
 from etl_decorators import backoff
+from etl_exceptions import DataDoesNotExistException, ZeroPgRowsException
 from etl_settings import EtlConfig, logger
 from psycopg2 import connect as pg_conn
 from psycopg2.extras import DictCursor
@@ -46,6 +47,13 @@ class PgBase:
     def __init__(self):
         self.cnf = EtlConfig()
         self.conn = self.connect()
+        self._verify_data_exists()
+
+    def _verify_data_exists(self) -> None:
+        """Проверка на наличие данных в таблице"""
+        row = self.query_one_row(self.TOTAL, None)
+        if PgRowsCount(**row).count == 0:
+            raise DataDoesNotExistException
 
     @backoff()
     def connect(self):
@@ -77,17 +85,13 @@ class PgBase:
             rows = cur.fetchall()
         return rows
 
-    def verify_data_exists(self) -> bool:
-        """Проверка на наличие данных в таблице"""
-        row = self.query_one_row(self.TOTAL, None)
-        if PgRowsCount(**row).count:
-            return True
-        return False
-
     def get_rows_count(self, date: datetime) -> int:
         """Получаем общее число строк к записи в ES"""
         row = self.query_one_row(self.COUNT, (date,))
-        return PgRowsCount(**row).count
+        count = PgRowsCount(**row).count
+        if count == 0:
+            raise ZeroPgRowsException(date)
+        return count
 
     def get_first_film_update_time(self) -> Optional[datetime]:
         """Возвращает дату первого обновления фильма по полю updated_at"""

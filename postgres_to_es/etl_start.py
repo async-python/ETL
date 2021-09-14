@@ -1,6 +1,7 @@
 from es_base import EsBase
-from etl_exceptions import (ExceededConnectLimitException,
-                            EmptyStartTimeException)
+from etl_exceptions import (
+    DataDoesNotExistException, EmptyStartTimeException,
+    ExceededConnectLimitException, ZeroPgRowsException)
 from etl_process import ETL
 from etl_settings import logger
 from pg_base import PgBase
@@ -16,4 +17,10 @@ if __name__ == '__main__':
     except ExceededConnectLimitException as error:
         logger.error(error)
     except EmptyStartTimeException as error:
+        logger.error(error)
+    except ZeroPgRowsException as error:
+        logger.error(error)
+    except DataDoesNotExistException as error:
+        logger.error(error)
+    except Exception as error:
         logger.error(error)
