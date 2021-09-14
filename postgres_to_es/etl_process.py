@@ -122,9 +122,5 @@ class ETL:
             return
         self.redis_adapter.set_process_state(ProcessStates.run)
         logger.info('Процесс ETL запущен')
-        try:
-            return reduce(lambda val, func: func(val),
-                          [self.load(), self.transform, self.extract])
-        except EmptyStartTimeException as error:
-            logger.error(error)
-            self.redis_adapter.set_process_state(ProcessStates.stop)
+        return reduce(lambda val, func: func(val),
+                      [self.load(), self.transform, self.extract])
