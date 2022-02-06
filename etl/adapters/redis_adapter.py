@@ -34,6 +34,7 @@ class RedisStorage(BaseStorage):
             port=conf.redis_port,
             password=conf.redis_password,
             decode_responses=True,
+            db=conf.redis_base
         )
 
     @backoff()
