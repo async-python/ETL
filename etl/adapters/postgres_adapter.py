@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta
 from typing import Any, List, Optional
 
+from psycopg2 import connect as pg_conn
+from psycopg2.extras import DictCursor
+
 from etl_dataclasses import PgFilmWork, PgGenre, PgObjID, PgPerson, PgRowsCount
 from etl_decorators import backoff
 from etl_exceptions import DataDoesNotExistException, ZeroPgRowsException
 from etl_settings import EtlConfig, logger
-from psycopg2 import connect as pg_conn
-from psycopg2.extras import DictCursor
 
 FIRST_ROW_QUERY = '''SELECT id, updated_at FROM {table} ORDER BY 
              updated_at, id LIMIT 1'''

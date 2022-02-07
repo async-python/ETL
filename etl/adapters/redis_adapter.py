@@ -4,9 +4,10 @@ import json
 from datetime import datetime
 from typing import Any, Optional
 
+from redis import Redis
+
 from etl_decorators import backoff
 from etl_settings import EtlConfig
-from redis import Redis
 
 
 class ProcessStates(enum.Enum):

@@ -28,6 +28,7 @@ class EtlConfig(BaseSettings):
     elastic_index_person: str = 'person'
     etl_butch_size: int = 10000
     etl_log_level: str
+    etl_sleep_period: int = 60
 
     class Config:
         env_file = './.env'

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Union, Optional
+from typing import Dict, List, Optional, Union
 from uuid import UUID
 
 OBJ_ID = Union[str, UUID]

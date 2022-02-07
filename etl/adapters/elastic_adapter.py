@@ -2,6 +2,7 @@ import json
 from dataclasses import asdict
 
 from elasticsearch import Elasticsearch
+
 from etl_decorators import backoff
 from etl_settings import EtlConfig, logger
 
