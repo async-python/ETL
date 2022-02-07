@@ -18,12 +18,11 @@ class EsAdapter:
         self.host = conf.elastic_host
         self.port = conf.elastic_port
         self.scheme = conf.elastic_scheme
-        self.http_auth = (conf.elastic_user, conf.elastic_password)
         self.es = self.connect()
 
     def connect(self) -> Elasticsearch:
         return Elasticsearch(hosts=self.host, port=self.port,
-                             scheme=self.scheme, http_auth=self.http_auth)
+                             scheme=self.scheme)
 
     @backoff()
     def bulk_create(self, data) -> None:

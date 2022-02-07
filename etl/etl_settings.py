@@ -21,7 +21,6 @@ class EtlConfig(BaseSettings):
     elastic_host: str = 'localhost'
     elastic_port: int = 9200
     elastic_user: str = 'elastic'
-    elastic_password: str
     elastic_scheme: str = 'http'
     elastic_index_film: str = 'movie'
     elastic_index_genre: str = 'genre'
