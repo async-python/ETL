@@ -4,11 +4,11 @@ from typing import Any, Callable, Coroutine, List, Optional
 
 from adapters.elastic_adapter import EsAdapter
 from adapters.postgres_adapter import PgAdapter
-from adapters.redis_adapter import ProcessStates, RedisAdapter
+from adapters.redis_adapter import RedisAdapter
 from etl_dataclasses import PgObjID
 from etl_decorators import coroutine
 from etl_exceptions import (EmptyStartTimeException,
-                            ProcessAlreadyExistException, ZeroPgRowsException)
+                            ZeroPgRowsException)
 from etl_settings import EtlConfig, logger
 
 
@@ -94,16 +94,14 @@ class Etl:
 
     def extract(self, transformer: Coroutine):
         """Получение списка ID кинопроизведений"""
-        while self.redis_adapter.get_process_state() == ProcessStates.run:
-            limited_ids: list[PgObjID] = self.pg_adapter.get_data_ids(
-                self.time_manager.get_last_time(), self.rows_limit)
-            if len(limited_ids):
-                films_ids = tuple([obj.id for obj in limited_ids])
-                self.temp_time_value = limited_ids[-1].updated_at
-                transformer.send(films_ids)
-            else:
-                self.redis_adapter.set_process_state(ProcessStates.stop)
+        limited_ids: list[PgObjID] = self.pg_adapter.get_data_ids(
+            self.time_manager.get_last_time(), self.rows_limit)
+        if len(limited_ids):
+            films_ids = tuple([obj.id for obj in limited_ids])
+            self.temp_time_value = limited_ids[-1].updated_at
+            transformer.send(films_ids)
         logger.info(f'Etl завершен для таблицы: {self.pg_adapter.table_name}')
+        return
 
     @coroutine
     def transform(self, loader: Coroutine):
@@ -126,14 +124,11 @@ class Etl:
             self.log_helper()
 
     def __call__(self, *args, **kwargs) -> Optional[Callable]:
-        if self.redis_adapter.get_process_state() == ProcessStates.run:
-            raise ProcessAlreadyExistException
         try:
             self._define_settings()
         except ZeroPgRowsException as error:
             logger.warning(error)
             return
-        self.redis_adapter.set_process_state(ProcessStates.run)
         logger.info(
             f'Etl запущен для таблицы: {self.pg_adapter.table_name}')
         return reduce(lambda val, func: func(val),

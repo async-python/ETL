@@ -3,3 +3,4 @@ WORKDIR /etl
 COPY requirements.txt .
 RUN pip install -r requirements.txt --no-cache-dir
 COPY ./etl .
+RUN python etl_loop.py
