@@ -94,12 +94,15 @@ class Etl:
 
     def extract(self, transformer: Coroutine):
         """Получение списка ID кинопроизведений"""
-        limited_ids: list[PgObjID] = self.pg_adapter.get_data_ids(
-            self.time_manager.get_last_time(), self.rows_limit)
-        if len(limited_ids):
-            films_ids = tuple([obj.id for obj in limited_ids])
-            self.temp_time_value = limited_ids[-1].updated_at
-            transformer.send(films_ids)
+        while True:
+            limited_ids: list[PgObjID] = self.pg_adapter.get_data_ids(
+                self.time_manager.get_last_time(), self.rows_limit)
+            if len(limited_ids):
+                films_ids = tuple([obj.id for obj in limited_ids])
+                self.temp_time_value = limited_ids[-1].updated_at
+                transformer.send(films_ids)
+            else:
+                break
         logger.info(f'Etl завершен для таблицы: {self.pg_adapter.table_name}')
         return
 
