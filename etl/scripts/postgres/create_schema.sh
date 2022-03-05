@@ -1,0 +1,5 @@
+#!/bin/bash
+
+psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<-EOSQL
+    CREATE SCHEMA IF NOT EXISTS content;
+EOSQL

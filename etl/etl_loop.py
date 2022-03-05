@@ -3,8 +3,6 @@ import time
 from adapters.elastic_adapter import EsAdapter
 from adapters.postgres_adapter import PgAdapter
 from adapters.redis_adapter import ProcessStates, RedisAdapter
-from etl_exceptions import (DataDoesNotExistException, EmptyStartTimeException,
-                            ExceededConnectLimitException)
 from etl_process import Etl
 from etl_settings import EtlConfig, logger
 
@@ -33,12 +31,6 @@ if __name__ == '__main__':
                 etl_genres()
                 etl_persons()
                 redis_base.set_process_state(ProcessStates.stop)
-        except ExceededConnectLimitException as error:
-            logger.error(error)
-        except EmptyStartTimeException as error:
-            logger.error(error)
-        except DataDoesNotExistException as error:
-            logger.error(error)
         except Exception as error:
             logger.error(error)
         time.sleep(conf.etl_sleep_period)

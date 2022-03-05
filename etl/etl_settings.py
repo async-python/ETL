@@ -25,9 +25,10 @@ class EtlConfig(BaseSettings):
     elastic_index_film: str = 'movie'
     elastic_index_genre: str = 'genre'
     elastic_index_person: str = 'person'
-    etl_butch_size: int = 10000
+    etl_butch_size: int = 1000
     etl_log_level: str
     etl_sleep_period: int = 60
+    etl_test_mode: bool = False
 
     class Config:
         env_file = './.env'

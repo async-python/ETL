@@ -19,6 +19,7 @@ class EsAdapter:
         self.port = conf.elastic_port
         self.scheme = conf.elastic_scheme
         self.es = self.connect()
+        self.test_mode = conf.etl_test_mode
 
     def connect(self) -> Elasticsearch:
         return Elasticsearch(hosts=self.host, port=self.port,
@@ -32,10 +33,18 @@ class EsAdapter:
             index = {'index': {'_index': self.index_name, '_id': item.id}}
             index_body += json.dumps(index) + '\n' + json.dumps(
                 asdict(item)) + '\n'
-        results = self.es.bulk(body=index_body, doc_type='application/json')
-        if results['errors']:
-            error = [result['index'] for result in results['items'] if
-                     result['index']['status'] not in SUCCESSFUL_STATUS_CODES]
-            logger.warning(results['took'])
-            logger.warning(results['errors'])
-            logger.warning(error)
+        if self.test_mode:
+            with open(f'{self.index_name}.json', 'rw') as f:
+                exist_data = json.load(f)
+                exist_data += index_body
+                json.dump(exist_data, f)
+        else:
+            results = self.es.bulk(body=index_body,
+                                   doc_type='application/json')
+            if results['errors']:
+                error = [result['index'] for result in results['items'] if
+                         result['index'][
+                             'status'] not in SUCCESSFUL_STATUS_CODES]
+                logger.warning(results['took'])
+                logger.warning(results['errors'])
+                logger.warning(error)
